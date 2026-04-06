@@ -1,0 +1,13 @@
+﻿
+deepface==0.0.99
+extra-streamlit-components==0.1.81
+numpy==2.1.2
+opencv-contrib-python==4.13.0.92
+opencv-python==4.13.0.92
+pillow==10.4.0
+scipy==1.17.1
+streamlit==1.55.0
+streamlit-aggrid==1.2.1.post2
+streamlit-authenticator==0.4.2
+
+

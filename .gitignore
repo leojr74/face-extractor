@@ -1,0 +1,33 @@
+# --- Vídeos e saídas do app ---
+*.mp4
+*.mov
+*.avi
+temp_video.*
+output/
+.face_cache/
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.pyo
+.env
+.venv/
+venv/
+env/
+
+# --- DeepFace (modelos baixados automaticamente) ---
+~/.deepface/
+.deepface/
+
+# --- IDEs ---
+.vscode/
+.idea/
+*.code-workspace
+
+# --- OS ---
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Streamlit ---
+.streamlit/secrets.toml
