@@ -1,115 +1,160 @@
 import streamlit as st
 import os
-import shutil
+import io
+import zipfile
 from engine import get_candidate_faces, run_extraction
 
-# 1. Configuração de Página
+# -------------------------------------------------------------------
+# Configuração de Página
+# -------------------------------------------------------------------
 st.set_page_config(page_title="Extrator de Faces", layout="wide")
 
-# FUNÇÃO PARA LIMPAR TUDO (Garante que o ArcFace não brigue com lixo do Facenet)
-def reset_total():
-    # Limpa as variáveis de controle da interface
-    st.session_state.target_emb = None
+st.title("🎯 Extrator de Faces")
+st.info("""
+Este app identifica faces em vídeos e extrai apenas a pessoa escolhida.
+
+**Dica:** Para acelerar o processo, edite o vídeo para conter apenas as imagens onde a
+pessoa de interesse aparece, garantindo que ela esteja presente já nos primeiros 15 segundos.
+""")
+
+
+def reset_state():
     st.session_state.imgs = None
     st.session_state.embs = None
-    # Opcional: deletar o arquivo temporário se quiser economizar espaço
-    if os.path.exists("temp_video.mp4"):
-        os.remove("temp_video.mp4")
-
-st.title("🎯 Extrator de Faces (ArcFace Edition)")
+    st.session_state.target_emb = None
 
 
+def gerar_zip(output_dir: str) -> bytes:
+    """Empacota todas as fotos da pasta output em um ZIP em memória."""
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for fname in sorted(os.listdir(output_dir)):
+            fpath = os.path.join(output_dir, fname)
+            zf.write(fpath, arcname=fname)
+    buf.seek(0)
+    return buf.read()
+
+
+# -------------------------------------------------------------------
 # Upload do vídeo
+# -------------------------------------------------------------------
 video_file = st.file_uploader(
-    "Suba seu vídeo (MP4, MOV, AVI)", 
-    type=['mp4', 'mov', 'avi'],
-    on_change=reset_total 
+    "Suba seu vídeo (MP4, MOV, AVI)",
+    type=["mp4", "mov", "avi"],
+    on_change=reset_state,
 )
 
 if video_file:
     video_path = "temp_video.mp4"
-    
-    # Se o imgs é None, significa que acabamos de subir o arquivo ou resetamos
-    if st.session_state.get('imgs') is None:
-        with open(video_path, "wb") as f:
-            f.write(video_file.getbuffer())
-        # Garante que as pastas de saída também sumam
-        if os.path.exists("extraidos"):
-            import shutil
-            shutil.rmtree("extraidos")
+    with open(video_path, "wb") as f:
+        f.write(video_file.read())
 
-    # --- PASSO 1: BUSCAR ROSTOS ---
-    if st.session_state.target_emb is None and st.session_state.imgs is None:
-        if st.button("🔍 1. Analisar Vídeo e Buscar Candidatos"):
-            with st.spinner("O motor ArcFace está aquecendo..."):
+    for key in ("imgs", "embs", "target_emb"):
+        if key not in st.session_state:
+            st.session_state[key] = None
+
+    # -------------------------------------------------------------------
+    # PASSO 1: BUSCAR ROSTOS
+    # -------------------------------------------------------------------
+    if st.session_state.target_emb is None:
+        if st.button("🔍 1. Analisar Vídeo e Buscar Candidatos", key="btn_analisar"):
+            with st.spinner("O motor MTCNN está escaneando os primeiros segundos..."):
                 imgs, embs = get_candidate_faces(video_path)
                 if imgs:
                     st.session_state.imgs = imgs
-                    st.session_state.embs = embs                    
+                    st.session_state.embs = embs
+                    st.rerun()
                 else:
-                    st.error("Nenhuma face encontrada. Verifique a iluminação nos primeiros 15s.")
+                    st.error("Nenhuma face encontrada no início do vídeo.")
 
-    # --- PASSO 2: MOSTRAR GALERIA ---
+    # -------------------------------------------------------------------
+    # PASSO 2: GALERIA DE CANDIDATOS
+    # -------------------------------------------------------------------
     if st.session_state.imgs and st.session_state.target_emb is None:
         st.divider()
         st.write("### Escolha quem você deseja extrair:")
-        
-        # Definimos um grid fixo de 6 colunas para as fotos ficarem pequenas
-        num_cols = 6 
-        for i in range(0, len(st.session_state.imgs), num_cols):
-            cols = st.columns(num_cols)
-            # Pegamos o lote de candidatos para esta linha
-            lote = st.session_state.imgs[i : i + num_cols]
-            
-            for j, img in enumerate(lote):
-                idx_real = i + j
-            with cols[j]:
-                st.image(img, channels="BGR", width='stretch')
-                if st.button(f"Extrair este 👤", key=f"btn_sel_{idx_real}"):
-                    st.session_state.target_emb = st.session_state.embs[idx_real]
+        cols = st.columns(len(st.session_state.imgs))
+        for idx, img in enumerate(st.session_state.imgs):
+            with cols[idx]:
+                st.image(img, channels="BGR", use_container_width=True)
+                if st.button(f"Extrair este 👤", key=f"btn_sel_{idx}"):
+                    st.session_state.target_emb = st.session_state.embs[idx]
                     st.rerun()
 
-    # --- PASSO 3: CONFIGURAÇÃO E EXTRAÇÃO TOTAL ---
+    # -------------------------------------------------------------------
+    # PASSO 3: CONFIGURAÇÃO E EXTRAÇÃO
+    # -------------------------------------------------------------------
     if st.session_state.target_emb is not None:
         st.success("🎯 Candidato alvo selecionado!")
-        
+
+        st.write("---")
         st.write("### ⚙️ Configuração de Captura")
+
         modo_escolhido = st.select_slider(
-            "Selecione o detalhamento (FPS):",
+            "Selecione o nível de detalhamento (FPS):",
             options=["Velocidade", "Equilíbrio", "Máxima Extração"],
-            value="Equilíbrio"
+            value="Equilíbrio",
+            help="Velocidade (0.5 fps), Equilíbrio (3 fps), Máxima (5 fps)",
         )
-        
+
         mapa_divisor = {"Velocidade": 0.5, "Equilíbrio": 3, "Máxima Extração": 5}
         divisor = mapa_divisor[modo_escolhido]
 
         c1, c2, _ = st.columns([2, 2, 6])
         with c1:
-            disparar = st.button("🚀 INICIAR EXTRAÇÃO", key="btn_run_total")
+            disparar_extracao = st.button("🚀 INICIAR EXTRAÇÃO TOTAL", key="btn_run_total")
         with c2:
-            if st.button("🔄 Trocar Candidato"):
+            if st.button("🔄 Trocar Candidato", key="btn_reset_target"):
                 st.session_state.target_emb = None
                 st.rerun()
 
-        status_texto = st.empty() 
+        status_texto = st.empty()
         barra_progresso = st.progress(0)
-        
-        if disparar:
-            # Garante que a pasta de saída esteja limpa
-            if os.path.exists("output"): shutil.rmtree("output")
-            os.makedirs("output")
+        msg_final = st.empty()
+
+        if disparar_extracao:
+            msg_final.info(f"Modo {modo_escolhido} ativado. Processando...")
 
             fotos_salvas = run_extraction(
-                video_path, 
-                st.session_state.target_emb, 
-                "output", 
+                video_path,
+                st.session_state.target_emb,
+                "output",
                 barra_progresso,
                 status_texto,
-                divisor 
+                divisor,
             )
-            
+
+            barra_progresso.empty()
+            status_texto.empty()
+
             if fotos_salvas:
-                st.success(f"✅ Concluído! {len(fotos_salvas)} fotos salvas na pasta /output.")
+                msg_final.success(f"✅ Concluído! {len(fotos_salvas)} fotos salvas.")
                 st.balloons()
+
+                # --- Preview ---
+                st.write("---")
+                st.write(f"### 🖼️ Prévia — {len(fotos_salvas)} imagens extraídas")
+                preview_files = sorted(fotos_salvas)[:12]
+                cols_prev = st.columns(min(len(preview_files), 4))
+                for i, fname in enumerate(preview_files):
+                    with cols_prev[i % 4]:
+                        st.image(
+                            os.path.join("output", fname),
+                            use_container_width=True,
+                            caption=fname,
+                        )
+                if len(fotos_salvas) > 12:
+                    st.caption(f"… e mais {len(fotos_salvas) - 12} imagens na pasta /output.")
+
+                # --- Botão de download ZIP ---
+                st.write("---")
+                zip_bytes = gerar_zip("output")
+                st.download_button(
+                    label=f"⬇️ Baixar todas as {len(fotos_salvas)} fotos (.zip)",
+                    data=zip_bytes,
+                    file_name="faces_extraidas.zip",
+                    mime="application/zip",
+                    use_container_width=True,
+                )
             else:
-                st.error("❌ Alvo não encontrado com os parâmetros atuais.")
+                msg_final.error("❌ Alvo não encontrado no vídeo.")
