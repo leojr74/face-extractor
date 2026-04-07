@@ -144,7 +144,7 @@ if video_file:
                             caption=fname,
                         )
                 if len(fotos_salvas) > 12:
-                    st.caption(f"… e mais {len(fotos_salvas) - 12} imagens na pasta /output.")
+                    st.caption(f"… e mais {len(fotos_salvas) - 12} imagens.")
 
                 # --- Botão de download ZIP ---
                 st.write("---")
