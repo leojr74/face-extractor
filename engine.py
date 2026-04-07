@@ -57,7 +57,7 @@ def is_good_quality(image):
 
 def get_candidate_faces(video_path):
     cap = cv2.VideoCapture(video_path)
-    v_fps = int(cap.get(cv2.CAP_PROP_FPS) or 30)
+    v_fps = int(cap.get(cv2.CAP_PROP_FPS) or 15)
     total_f = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     candidates, candidate_embs = [], []
 
