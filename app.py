@@ -13,7 +13,7 @@ st.title("🎯 Extrator de Faces")
 st.info("""
 Este app identifica faces em vídeos e extrai apenas a pessoa escolhida.
 
-**Dica:** Para acelerar o processo, edite o vídeo para conter apenas as imagens onde a
+**Dica:** Para acelerar o processo, edite o vídeo para conter apenas o período em que a
 pessoa de interesse aparece, garantindo que ela esteja presente já nos primeiros 15 segundos.
 """)
 
