@@ -76,7 +76,7 @@ if video_file:
         cols = st.columns(len(st.session_state.imgs))
         for idx, img in enumerate(st.session_state.imgs):
             with cols[idx]:
-                st.image(img, channels="BGR", use_container_width=True)
+                st.image(img, channels="BGR", width=150)
                 if st.button(f"Extrair este 👤", key=f"btn_sel_{idx}"):
                     st.session_state.target_emb = st.session_state.embs[idx]
                     st.rerun()
